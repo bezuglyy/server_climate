@@ -52,6 +52,7 @@ from .const import (
     CONF_EFF_DELTA,
     CONF_PAUSE_HOURS,
     CONF_SINGLE_AC,
+    FAN_GRACE_SECONDS,
     CONF_SETPOINT,
     CONF_HYSTERESIS,
     CONF_MIN_TEMP,
@@ -100,6 +101,8 @@ class ServerClimateController:
         self._unsub = None
         self._vent_turned_on_at = None
         self._fan_ok: bool | None = None
+        self._fan_best: float | None = None
+        self._fan_next = None
         self._lead = 0                 # индекс ведущего кондиционера
         self._lead_fails = 0
         self._last_alert: dict[str, Any] = {}
@@ -261,15 +264,35 @@ class ServerClimateController:
             if self._vent_turned_on_at is None:
                 self._vent_turned_on_at = now
                 self._fan_ok = None
-            elif self._fan_ok is None and (now - self._vent_turned_on_at).total_seconds() >= check_delay:
-                rpm = _float(hass, rpm_entity)
-                self._fan_ok = bool(rpm is not None and rpm >= rpm_min)
-                if not self._fan_ok:
-                    self.problem = f"приточка не запустилась: обороты {rpm} < {rpm_min:.0f}"
-                    await self._alert("Серверная: приточка не запустилась", self.problem)
+                self._fan_best = None
+                self._fan_next = None
+            rpm = _float(hass, rpm_entity)
+            if rpm is not None:
+                self._fan_best = rpm if self._fan_best is None else max(self._fan_best, rpm)
+            elapsed = (now - self._vent_turned_on_at).total_seconds()
+            # вентилятор раскручивается не мгновенно: сначала ждём check_delay,
+            # затем ещё FAN_GRACE секунд перепроверяем и берём лучший результат
+            deadline = check_delay + FAN_GRACE_SECONDS
+            if self._fan_ok is not True and elapsed >= check_delay:
+                if self._fan_next is None or (now - self._fan_next).total_seconds() >= 10:
+                    self._fan_next = now
+                    best = float(self._fan_best or 0)
+                    if best >= rpm_min:
+                        self._fan_ok = True
+                        self.problem = None
+                    elif elapsed >= deadline:
+                        self._fan_ok = False
+                        self.problem = (
+                            f"приточка не запустилась: обороты {best:.0f} < {rpm_min:.0f}"
+                        )
+                        await self._alert(
+                            "Серверная: приточка не запустилась", self.problem
+                        )
         else:
             self._vent_turned_on_at = None
             self._fan_ok = None
+            self._fan_best = None
+            self._fan_next = None
 
         # если приточка не крутится — вентиляцию «не считаем» рабочей (кондиционеры не блокируем)
         if self._fan_ok is False:

@@ -1,7 +1,7 @@
 {
   "domain": "server_climate",
   "name": "Server Climate (серверная)",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "documentation": "https://github.com/bezuglyy/server_climate",
   "requirements": [],
   "dependencies": [],
