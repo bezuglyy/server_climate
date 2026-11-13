@@ -10,7 +10,8 @@ from .const import (
     DOMAIN, CONF_SETPOINT, CONF_HYSTERESIS, CONF_MIN_TEMP,
     CONF_OUTSIDE_MAX, CONF_AC_ALLOW_ABOVE, CONF_FROST_TEMP,
     CONF_FROST_ON_MIN, CONF_FROST_OFF_MIN, CONF_EFF_MIN,
-    CONF_EFF_DELTA, CONF_PAUSE_HOURS, DEFAULTS,
+    CONF_EFF_DELTA, CONF_PAUSE_HOURS, CONF_ESCALATE_MIN,
+    CONF_ESCALATE_DELTA, DEFAULTS,
 )
 
 ITEMS = [
@@ -25,6 +26,8 @@ ITEMS = [
     (CONF_EFF_MIN, "Оценка эффективности через, мин", 5, 120, 5, "мин"),
     (CONF_EFF_DELTA, "Должна упасть на", 0.1, 5, 0.1, "°C"),
     (CONF_PAUSE_HOURS, "Длительность паузы", 1, 24, 1, "ч"),
+    (CONF_ESCALATE_MIN, "Второй кондиционер через, мин", 1, 120, 1, "мин"),
+    (CONF_ESCALATE_DELTA, "Первый должен опустить на", 0.1, 5, 0.1, "°C"),
 ]
 
 

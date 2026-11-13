@@ -47,7 +47,11 @@ CONF_EFF_DELTA = "eff_delta"              # насколько должна уп
 CONF_PAUSE_HOURS = "pause_hours"          # длительность паузы по умолчанию
 
 # --- ротация кондиционеров (один за раз) ---
-CONF_SINGLE_AC = "single_ac"              # true = работает один, второй резерв
+CONF_SINGLE_AC = "single_ac"              # (устарело, не используется)
+
+# --- эскалация: второй кондиционер, если первый не справляется ---
+CONF_ESCALATE_MIN = "escalate_min"        # сколько минут ждём результата от первого
+CONF_ESCALATE_DELTA = "escalate_delta"    # на сколько должна упасть T за это время
 
 # --- пороги ---
 CONF_SETPOINT = "setpoint"                # уставка, °C
@@ -78,6 +82,8 @@ DEFAULTS = {
     CONF_EFF_DELTA: 0.5,
     CONF_PAUSE_HOURS: 2,
     CONF_SINGLE_AC: False,
+    CONF_ESCALATE_MIN: 10,
+    CONF_ESCALATE_DELTA: 0.5,
 }
 
 # повтор команды кондиционеру, секунды

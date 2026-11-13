@@ -51,7 +51,8 @@ from .const import (
     CONF_EFF_MIN,
     CONF_EFF_DELTA,
     CONF_PAUSE_HOURS,
-    CONF_SINGLE_AC,
+    CONF_ESCALATE_MIN,
+    CONF_ESCALATE_DELTA,
     FAN_GRACE_SECONDS,
     CONF_SETPOINT,
     CONF_HYSTERESIS,
@@ -103,6 +104,9 @@ class ServerClimateController:
         self._fan_ok: bool | None = None
         self._fan_best: float | None = None
         self._fan_next = None
+        self._cs_start = None
+        self._cs_t0: float | None = None
+        self._escalated = False
         self._lead = 0                 # индекс ведущего кондиционера
         self._lead_fails = 0
         self._last_alert: dict[str, Any] = {}
@@ -321,31 +325,60 @@ class ServerClimateController:
         if self._vent_ineffective:
             vent_running = False
 
-        # --- 2. кондиционеры ---
+        # --- 2. кондиционеры: первым работает AUX, второй — если первый не справляется ---
         acs = self._acs()
-        single_ac = bool(self._get(CONF_SINGLE_AC))
-        if single_ac and len(acs) > 1:
-            # ведущий/резервный: если ведущий не подтвердил включение 2 раза — переключаемся
-            needs_cool = t > ac_above
-            if needs_cool and self._lead_fails >= 2:
-                self._lead = 1 - self._lead
-                self._lead_fails = 0
-                self.reason = "переключение на резервный кондиционер"
-            # оба — только при сильной жаре
-            both = t > (ac_above + 2)
-            order = acs if both else [acs[self._lead]]
-            for ac in order:
-                await self._handle_ac(ac, t, vent_running, ac_above, setpoint, hyst)
-            # неработающему — выключаем (если не оба)
-            if not both:
-                for ac in acs:
-                    if ac not in order:
-                        st = self.hass.states.get(ac["climate"])
-                        if st and st.state != "off":
-                            await self._call("climate", "set_hvac_mode", {"entity_id": ac["climate"], "hvac_mode": "off"})
-        else:
+        escalate_min = float(self._get(CONF_ESCALATE_MIN) or 10)
+        escalate_delta = float(self._get(CONF_ESCALATE_DELTA) or 0.5)
+
+        # пока работает фрикулинг — кондиционеры выключены; исключение — реальная жара
+        ac_allowed = (not vent_running) or (t is not None and t > ac_above)
+
+        if not ac_allowed:
+            self._cs_start = None
+            self._cs_t0 = None
+            self._escalated = False
             for ac in acs:
-                await self._handle_ac(ac, t, vent_running, ac_above, setpoint, hyst)
+                await self._set_ac(ac, False)
+        elif acs:
+            primary = acs[0]
+            secondary = acs[1] if len(acs) > 1 else None
+            await self._set_ac(primary, True)
+
+            if secondary is None:
+                self._escalated = False
+            else:
+                st_p = self.hass.states.get(primary["climate"])
+                target = st_p.attributes.get("temperature") if st_p else None
+                target = float(target if target is not None else setpoint)
+
+                primary_on = self._is_on(primary.get("virtual"))
+                if primary_on and t is not None and t > target + 0.4:
+                    if self._cs_start is None:
+                        self._cs_start = now
+                        self._cs_t0 = t
+                        self._escalated = False
+                    drop = (self._cs_t0 if self._cs_t0 is not None else t) - t
+                    passed = (now - self._cs_start).total_seconds() / 60.0
+                    if (not self._escalated and passed >= escalate_min
+                            and drop < escalate_delta):
+                        self._escalated = True
+                        self.reason = (
+                            f"первый не справляется за {escalate_min:.0f} мин "
+                            f"(T {t:.1f}) — включаю второй"
+                        )
+                else:
+                    if self._escalated:
+                        self.reason = f"остыло до {t:.1f} — второй выключен"
+                    self._cs_start = None
+                    self._cs_t0 = None
+                    self._escalated = False
+
+                await self._set_ac(secondary, self._escalated, force=self._escalated)
+                if self._escalated:
+                    self.reason = (
+                        f"работают оба: первый не справляется "
+                        f"(T {t:.1f}, цель {target:.0f})"
+                    )
 
         alert_temp = float(self._get(CONF_ALERT_TEMP) or 0)
         if alert_temp and t is not None and t > alert_temp:
@@ -353,53 +386,34 @@ class ServerClimateController:
 
         hass.bus.async_fire(f"{DOMAIN}_update", {"entry_id": self.entry.entry_id})
 
-    async def _handle_ac(
-        self,
-        ac: dict[str, Any],
-        t: float,
-        vent_running: bool,
-        ac_above: float,
-        setpoint: float,
-        hyst: float,
+    async def _set_ac(
+        self, ac: dict[str, Any], enable: bool, force: bool = False
     ) -> None:
+        """Включить/выключить кондиционер (режим cool/off + сверка факта).
+
+        force=True — включить принудительно, не дожидаясь, пока термостат
+        со своей толерантностью (1.5 °C) сам решит охлаждать.
+        """
         climate = ac["climate"]
         st = self.hass.states.get(climate)
         if st is None:
             return
-
-        # Жарко — вентиляция не справляется: разрешаем кондиционер
-        if t > ac_above:
+        if enable:
             if st.state != "cool":
                 await self._call(
-                    "climate",
-                    "set_hvac_mode",
-                    {"entity_id": climate, "hvac_mode": "cool"},
+                    "climate", "set_hvac_mode", {"entity_id": climate, "hvac_mode": "cool"}
                 )
-            await self._confirm_ac(ac, want_on=True)
-            self.reason = f"жарко {t:.1f} > {ac_above:.0f}: кондиционеры разрешены"
-            return
-
-        # Вентиляция работает и не жарко — кондиционеры выключаем
-        if vent_running:
+            virtual = ac.get("virtual")
+            if force and virtual and not self._is_on(virtual):
+                await self._call("switch", "turn_on", {"entity_id": virtual})
+            want = True if force else (self._is_on(virtual) if virtual else True)
+            await self._confirm_ac(ac, want_on=want)
+        else:
             if st.state != "off":
                 await self._call(
-                    "climate",
-                    "set_hvac_mode",
-                    {"entity_id": climate, "hvac_mode": "off"},
+                    "climate", "set_hvac_mode", {"entity_id": climate, "hvac_mode": "off"}
                 )
             await self._confirm_ac(ac, want_on=False)
-            return
-
-        # Вентиляция не работает — обычный режим: кондиционер живёт по своему
-        # термостату (виртуальный переключатель -> сцена -> ИК). Не вмешиваемся,
-        # но сверяем факт: если термостат просит "вкл", а аппарат стоит — повторяем сцену.
-        if st.state != "cool":
-            await self._call(
-                "climate", "set_hvac_mode", {"entity_id": climate, "hvac_mode": "cool"}
-            )
-        virtual = ac.get("virtual")
-        want = self._is_on(virtual) if virtual else True
-        await self._confirm_ac(ac, want_on=want)
 
     async def _confirm_ac(self, ac: dict[str, Any], want_on: bool) -> None:
         """Проверяет подтверждение (вход УВ) и повторяет команду, если разошлось."""

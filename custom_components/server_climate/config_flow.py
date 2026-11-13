@@ -38,7 +38,8 @@ from .const import (
     CONF_EFF_MIN,
     CONF_EFF_DELTA,
     CONF_PAUSE_HOURS,
-    CONF_SINGLE_AC,
+    CONF_ESCALATE_MIN,
+    CONF_ESCALATE_DELTA,
     CONF_SETPOINT,
     CONF_HYSTERESIS,
     CONF_MIN_TEMP,
@@ -117,7 +118,8 @@ def _schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Optional(CONF_EFF_MIN, default=d[CONF_EFF_MIN]): vol.Coerce(int),
             vol.Optional(CONF_EFF_DELTA, default=d[CONF_EFF_DELTA]): vol.Coerce(float),
             vol.Optional(CONF_PAUSE_HOURS, default=d[CONF_PAUSE_HOURS]): vol.Coerce(int),
-            vol.Optional(CONF_SINGLE_AC, default=d.get(CONF_SINGLE_AC, False)): bool,
+            vol.Optional(CONF_ESCALATE_MIN, default=d[CONF_ESCALATE_MIN]): vol.Coerce(int),
+            vol.Optional(CONF_ESCALATE_DELTA, default=d[CONF_ESCALATE_DELTA]): vol.Coerce(float),
             # пороги
             vol.Optional(CONF_SETPOINT, default=d[CONF_SETPOINT]): vol.Coerce(float),
             vol.Optional(CONF_HYSTERESIS, default=d[CONF_HYSTERESIS]): vol.Coerce(

@@ -1,17 +1,17 @@
-# MD5SUMS — server-climate (13.11.2026, v1.2.7)
+# MD5SUMS — server-climate (13.11.2026, v1.3.2)
 
 ## custom_components/server_climate
 7c5dc69fbef7c9ced154944a9cd7cdff  binary_sensor.py
 5664ddc122e8e238b18de7e5fff50659  button.py
-39bdcb196924f642e4b58d189311c41c  config_flow.py
-1af35594d89c0585361246e0d414fe45  const.py
-d342fb19d52205717df5f8befe673d28  __init__.py
-a71897261bce689440f1da0ccc7c63c6  number.py
+68d22bfc0fd8dee627b6b3e42be1de52  config_flow.py
+35ba71dfe512df7bf25facd2ed97b5c2  const.py
+75e266a607acd2172a8d1b2cca59f4a2  __init__.py
+807931889562f13b9e82cb939ffb599a  number.py
 6d34a3e66507d53975ca7e38b0a250ee  sensor.py
 0d77fb5958bcfc29ddf9f019c1cd079e  switch.py
-e842b87d81c54ac35d06a627ad67ba7e  manifest.json
-d28b9cffe97ae37c99c3f2977ace3734  strings.json
-d28b9cffe97ae37c99c3f2977ace3734  translations/ru.json
+fe728d7e106d791adc72c960da53bf80  manifest.json
+6f51217dbb8e30277df43a10bc234688  strings.json
+6f51217dbb8e30277df43a10bc234688  translations/ru.json
 80e98f03aa81eecc47898d6eff86ec12  brand/dark_icon@2x.png
 3fa27779b3ab7d209a7153ef0b4086eb  brand/dark_icon.png
 37359cbca6136d7236e9f57d3507c492  brand/dark_logo@2x.png
@@ -23,6 +23,6 @@ cfdfbcfd3c0be4543e6803acc8aa98f5  brand/logo@2x.png
 
 ## docs
 fad6071099f57ba7a74f056ee93bfc63  FAQ.md
-ac886a0ea8c3e17c5d6a7939ba3afb12  ОПИСАНИЕ-ПРОЕКТА.md
+26d449b1837a6008d8e5ef40f90c24b9  ОПИСАНИЕ-ПРОЕКТА.md
 424dfb5b2099a7562d9a94f4354aca9b  FAQ.pdf
-b208f703f56af1de67dcb90fa0c6a972  ОПИСАНИЕ-ПРОЕКТА.pdf
+520dce1e10bcc8f23b38641bd3b42adf  ОПИСАНИЕ-ПРОЕКТА.pdf
