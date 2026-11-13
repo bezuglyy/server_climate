@@ -200,6 +200,12 @@ class ServerClimateController:
         if t_out is None:
             self.problem = "датчик улицы недоступен"
             self.reason = "нет данных по улице"
+            await self._alert(
+                "Серверная: нет данных по улице",
+                "Датчик улицы (ESP «Серверная УВ») недоступен — фрикулинг и контроль "
+                "кондиционеров не работают. Проверить питание ESP.",
+                min_interval=3600,
+            )
             return
 
         running = self._is_on(supply) or self._is_on(exhaust)
@@ -476,7 +482,7 @@ class ServerClimateController:
         st = self.hass.states.get(entity_id)
         return bool(st and st.state == "on")
 
-    async def _alert(self, title: str, text: str) -> None:
+    async def _alert(self, title: str, text: str, min_interval: int = 600) -> None:
         """Окно на ПК через TechlanNotifier (без спама: не чаще раза в 10 минут)."""
         host = str(self._get(CONF_ALERT_HOST) or "").strip()
         if not host:
@@ -485,7 +491,7 @@ class ServerClimateController:
         import homeassistant.util.dt as dt_util
         now = dt_util.utcnow()
         last = self._last_alert.get(title)
-        if last and (now - last).total_seconds() < 600:
+        if last and (now - last).total_seconds() < min_interval:
             return
         self._last_alert[title] = now
         url = f"http://{host}:{port}/notify"
